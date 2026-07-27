@@ -2,7 +2,7 @@
 
 [![CI](https://github.com/weihuaguo270-ops/transformer-attention/actions/workflows/test.yml/badge.svg)](https://github.com/weihuaguo270-ops/transformer-attention/actions/workflows/test.yml) [![Python 3.10+](https://img.shields.io/badge/python-3.10%2B-blue)](https://www.python.org) [![License: MIT](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 
-**NumPy/PyTorch 教学实现的 Transformer Attention 机制** — 涵盖从 2017 年原始 Transformer 到现代 LLM 架构（GQA、Llama Block、DeepSeek MLA、Speculative Decoding、Attention Sinks）的演进对照。
+**NumPy/PyTorch 手写 Attention** — 从 2017 Transformer 到 GQA、Llama Block、DeepSeek MLA（含 absorb 路径）、Speculative Decoding、Attention Sinks 的对照实现。教学规模，不是预训练工程。
 
 ## 快速开始
 
@@ -125,7 +125,7 @@ x → RMSNorm → GQA(RoPE) → +残差 → RMSNorm → SwiGLU → +残差 → �
 
 ### MLA — Multi-head Latent Attention（2024）
 
-**DeepSeek V2/V3 的核心创新。** 将 K/V 压缩到低维潜空间，KV Cache 降至 MHA 的约 2%。
+DeepSeek V2/V3 用的思路：把 K/V 压到低维潜空间，KV Cache 明显小于 MHA。
 
 ```
 MHA:   K = h · W_K,       缓存 K-V（d_model 维）
@@ -212,7 +212,7 @@ python -m experiments.benchmark_mla_absorb --seq_len 256 --d_model 512 --d_c 128
 ## 相关项目
 
 - [llm-eval-engine](https://github.com/weihuaguo270-ops/llm-eval-engine) — LLM 评估实验框架
-- [react-agent](https://github.com/weihuaguo270-ops/react-agent) — ReAct Agent 学习实现
+- [react-agent](https://github.com/weihuaguo270-ops/react-agent) — Agent 运行时（另一条线）
 
 ## License
 
