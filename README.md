@@ -2,7 +2,7 @@
 
 [![CI](https://github.com/weihuaguo270-ops/transformer-attention/actions/workflows/test.yml/badge.svg)](https://github.com/weihuaguo270-ops/transformer-attention/actions/workflows/test.yml) [![Python 3.10+](https://img.shields.io/badge/python-3.10%2B-blue)](https://www.python.org) [![License: MIT](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 
-**LLM 自回归推理链路的对照实现与基准** — 从 Attention 计算、KV Cache 管理到解码加速，用 NumPy/PyTorch 手写 GQA、MLA（含 absorb 路径）、Speculative Decoding、Attention Sinks 等主流优化手段，并提供可复现的延迟/缓存/质量对比实验。教学规模，不是预训练工程。
+**LLM 自回归推理链路的实现与基准** — NumPy 提供可读的数学参考；PyTorch 2.x 路径面向真实性能工程，默认使用原生 SDPA/GQA kernel、预分配 Static KV Cache、`inference_mode`，并支持 CUDA AMP 与 `torch.compile`。仓库提供可复现的延迟、缓存和解码实验，不包含大规模预训练设施。
 
 ## 推理链路概览
 
@@ -32,7 +32,7 @@ Decode Loop（每步）
 | 长上下文 Cache 淘汰 | Attention Sinks | [`modern_llm/attention_sinks.py`](modern_llm/attention_sinks.py) |
 | Decode 串行延迟 | Speculative / Lookahead / Medusa | [`modern_llm/speculative_decoding.py`](modern_llm/speculative_decoding.py) 等 |
 | 共享前缀重复 Prefill | Prefix Cache | [`pytorch/prefix_cache.py`](pytorch/prefix_cache.py) |
-| Cache 显存碎片 | PagedAttention（简化） | [`pytorch/paged_kv_cache.py`](pytorch/paged_kv_cache.py) |
+| Cache 显存碎片 | Paged KV Cache（block 读取路径） | [`pytorch/paged_kv_cache.py`](pytorch/paged_kv_cache.py) |
 | 服务化吞吐 | Continuous Batching | [`pytorch/continuous_batching.py`](pytorch/continuous_batching.py) |
 | 优化效果量化 | 基准与对比实验 | [`experiments/`](experiments/README.md) |
 
@@ -79,7 +79,7 @@ transformer-attention/
 │   ├── compare_prefix_cache.py      Prefix Cache TTFT 对比
 │   ├── compare_paged_cache.py       Paged KV block 利用率
 │   ├── compare_kv_quant.py          FP32 vs INT8 Cache 体积/误差
-│   ├── compare_continuous_batching.py 多请求交错调度模拟
+│   ├── compare_continuous_batching.py 多请求真实批量前向对比
 │   └── runs/                   实验记录 + mla_absorb_*.csv
 │
 ├── pytorch/                    # PyTorch 实现 + 推理引擎
@@ -89,7 +89,8 @@ transformer-attention/
 │   ├── prefix_cache.py         共享前缀 Cache 复用
 │   ├── paged_kv_cache.py       Block 化 KV 存储
 │   ├── speculative_decoding.py PyTorch GPT Spec Decoding 适配
-│   ├── continuous_batching.py  Continuous Batching 调度模拟
+│   ├── cache_backends.py       连续 / Paged KV Cache 统一接口
+│   ├── continuous_batching.py  共享模型的批量 Prefill / Decode 调度
 │   ├── llama_block.py          完整 GPT 模型
 │   ├── train_gpt.py            训练脚本（TinyStories 级）
 │   └── test_all.py             PyTorch 侧冒烟测试
@@ -158,7 +159,7 @@ python -m experiments.benchmark_mla_absorb --seq_len 256 --d_model 512 --d_c 128
 
 ### Speculative Decoding — Decode 并行加速
 
-小模型（Draft Model）先生成 K 个候选 token，目标模型批量验证并用 rejection sampling 保持目标分布。当前为 NumPy 算法演示；尚未用真实 draft/target 模型验证端到端质量等价或 2-3x 加速。
+小模型（Draft Model）先生成 K 个候选 token，目标模型批量验证并用 rejection sampling 保持目标分布。PyTorch 基准同时报告 Target 调用次数比与墙钟加速比；当前 draft/target 仍是训练前小模型，因此只验证执行链路，不代表训练后模型的质量或加速收益。
 
 ### Attention Sinks / StreamingLLM — 长上下文 Cache 管理
 
@@ -170,6 +171,12 @@ python -m experiments.benchmark_mla_absorb --seq_len 256 --d_model 512 --d_c 128
 # Prefill / Decode 分离：TTFT、TPOT、KV Cache vs 无 Cache
 python -m experiments.benchmark_prefill_decode
 python -m experiments.benchmark_prefill_decode --device cuda --prompt_len 512
+python -m experiments.benchmark_prefill_decode --cache_backend paged --json experiments/runs/prefill_decode.json
+
+# PyTorch 2.x 优化矩阵：eager / SDPA / Static Cache / AMP / compile
+python -m experiments.benchmark_pytorch_optimized --device cuda --prompt_len 1024 \
+  --amp_dtype bfloat16 --compile_mode reduce-overhead \
+  --json experiments/runs/pytorch_optimized.json
 
 # Attention 变体：Cache 大小 / 参数量 / 60 层推估
 python -m experiments.compare_attention
@@ -179,15 +186,15 @@ python -m experiments.compare_cache
 
 # 解码策略：标准 / Spec / Lookahead / Medusa
 python -m experiments.compare_decode_strategies
-python -m experiments.compare_decoding_pytorch   # PyTorch GPT 真实小模型
+python -m experiments.compare_decoding_pytorch --json experiments/runs/speculative.json
 
 # Cache 层优化：Prefix / Paged / 量化
 python -m experiments.compare_prefix_cache
 python -m experiments.compare_paged_cache
 python -m experiments.compare_kv_quant
 
-# 服务化：Continuous Batching 模拟
-python -m experiments.compare_continuous_batching
+# 服务化：Continuous Batching
+python -m experiments.compare_continuous_batching  # 真实 batched forward 次数
 
 # 前向延迟 / 吞吐量（CI 短序列；本地可换 GPU / 长序列）
 python -m experiments.benchmark_attention
@@ -210,8 +217,12 @@ python -m pytorch.train_gpt --epochs 5 --num_kv_heads 2   # GQA 对比
 python test_all.py                              # np_impl + modern_llm（约 74 项）
 python -m np_impl.test                          # 基线：~41 项
 python -m modern_llm.test                       # 优化实现：~33 项
-python -m pytorch.test_all                      # PyTorch 侧：~25 项
+python -m pytorch.test_all                      # PyTorch 数值与调度测试
 ```
+
+测试入口在任意检查失败时返回非零退出码。PyTorch 套件额外验证完整前向与连续/Paged Cache、chunked prefix prefill 的逐步数值一致性，以及 Continuous Batching 的生成边界。
+
+基准 JSON 包含 Python/PyTorch/设备环境、完整参数、Mean/P50/P95、Cache 逻辑占用与预分配容量等字段。CPU 或共享 CI runner 的耗时只适合冒烟验证，FlashAttention、AMP 和编译收益应在固定 CUDA GPU 与固定软件栈下重复采集。
 
 ## 环境要求
 

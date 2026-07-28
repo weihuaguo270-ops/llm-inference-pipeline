@@ -14,7 +14,7 @@ jobs:
     - name: Install lint tools
       run: pip install flake8
     - name: Lint
-      run: flake8 np_impl/ modern_llm/ --max-line-length=200 --count
+      run: flake8 np_impl/ modern_llm/ pytorch/ experiments/ test_all.py console_io.py --max-line-length=200 --count
 
   test:
     runs-on: ubuntu-latest
@@ -41,6 +41,7 @@ jobs:
         pip install torch --extra-index-url https://download.pytorch.org/whl/cpu
         python -m experiments.benchmark_attention --seq_len 128 --warmup 2 --iter 5
         python -m experiments.benchmark_prefill_decode --prompt_len 64 --decode_steps 8 --warmup 2 --reps 5
+        python -m experiments.benchmark_pytorch_optimized --prompt_len 32 --decode_steps 4 --d_model 64 --num_layers 1 --num_heads 4 --num_kv_heads 2 --warmup 1 --reps 2
         python -m experiments.compare_decoding_pytorch
 
   test-windows:

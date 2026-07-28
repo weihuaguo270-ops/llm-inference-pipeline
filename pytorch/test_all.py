@@ -203,6 +203,149 @@ logits_d = eng.decode_step(tok)
 check("Prefill logits 形状", logits_p.shape == (1, 10, 128))
 check("Decode logits 形状", logits_d.shape == (1, 1, 128))
 
+# Cache 路径必须与每步完整重算的最后一个位置严格对齐。
+gpt.eval()
+sequence = torch.randint(0, 128, (2, 8))
+eng = InferenceEngine(gpt)
+cached_prefill = eng.prefill(sequence[:, :5])
+full_prefill = gpt(sequence[:, :5])
+check(
+    "Prefill 与完整前向一致",
+    torch.allclose(cached_prefill, full_prefill, atol=1e-5, rtol=1e-5),
+)
+for pos in range(5, sequence.shape[1]):
+    cached_step = eng.decode_step(sequence[:, pos:pos + 1])
+    full_step = gpt(sequence[:, :pos + 1])[:, -1:, :]
+    check(
+        f"Batch Decode 第 {pos} 步与完整前向一致",
+        torch.allclose(cached_step, full_step, atol=1e-5, rtol=1e-5),
+        f"max_diff={(cached_step - full_step).abs().max().item()}",
+    )
+
+fresh_eng = InferenceEngine(gpt)
+try:
+    fresh_eng.decode_step(torch.randint(0, 128, (1, 1)))
+except RuntimeError:
+    decode_requires_prefill = True
+else:
+    decode_requires_prefill = False
+check("Decode 前必须 Prefill", decode_requires_prefill)
+
+paged_eng = InferenceEngine(gpt, cache_backend="paged", block_size=3)
+paged_prefill = paged_eng.prefill(sequence[:, :5])
+check(
+    "Paged Cache Prefill 与完整前向一致",
+    torch.allclose(paged_prefill, full_prefill, atol=1e-5, rtol=1e-5),
+)
+for pos in range(5, sequence.shape[1]):
+    paged_step = paged_eng.decode_step(sequence[:, pos:pos + 1])
+    full_step = gpt(sequence[:, :pos + 1])[:, -1:, :]
+    check(
+        f"Paged Decode 第 {pos} 步与完整前向一致",
+        torch.allclose(paged_step, full_step, atol=1e-5, rtol=1e-5),
+        f"max_diff={(paged_step - full_step).abs().max().item()}",
+    )
+check("Paged Cache 跨越多个 block", paged_eng.kv_caches[0].num_blocks == 3)
+
+# Static Cache 必须原地更新，避免 Decode 阶段重复分配 K/V。
+static_eng = InferenceEngine(gpt, cache_backend="static")
+static_eng.prefill(sequence[:, :5])
+static_ptr = static_eng.kv_caches[0].k.data_ptr()
+static_eng.decode_step(sequence[:, 5:6])
+check("Static Cache Decode 不重新分配", static_eng.kv_caches[0].k.data_ptr() == static_ptr)
+check("Static Cache 逻辑长度更新", static_eng.kv_caches[0].length == 6)
+check(
+    "Static Cache 使用预分配容量",
+    static_eng.kv_caches[0].k.shape[2] == gpt.max_seq_len,
+)
+from pytorch.cache_backends import StaticKVCache
+
+capacity_k = torch.randn(1, 1, 1, 4)
+capacity_cache = StaticKVCache(2, capacity_k, capacity_k)
+try:
+    capacity_cache.append(torch.randn(1, 1, 2, 4), torch.randn(1, 1, 2, 4))
+except RuntimeError:
+    static_capacity_guard = True
+else:
+    static_capacity_guard = False
+check("Static Cache 容量越界会失败", static_capacity_guard)
+
+# SDPA/原生 GQA kernel 与 eager 参考实现保持一致。
+eager_gpt = GPT(
+    vocab_size=128, d_model=32, num_layers=2, num_heads=4,
+    num_kv_heads=2, d_ff=64, max_seq_len=64,
+    attention_backend="eager",
+)
+eager_gpt.load_state_dict(gpt.state_dict())
+sdpa_logits = gpt(sequence)
+eager_logits = eager_gpt(sequence)
+check(
+    "SDPA GQA 与 eager 完整前向一致",
+    torch.allclose(sdpa_logits, eager_logits, atol=1e-5, rtol=1e-5),
+    f"max_diff={(sdpa_logits - eager_logits).abs().max().item()}",
+)
+
+amp_eng = InferenceEngine(gpt, cache_backend="static", amp_dtype="bfloat16")
+amp_logits = amp_eng.prefill(sequence[:, :5])
+check("BF16 autocast 推理输出有限", torch.isfinite(amp_logits).all().item())
+
+
+# ============================================================
+# 9. Continuous Batching
+# ============================================================
+print("\n【Continuous Batching】")
+from pytorch.continuous_batching import ContinuousBatcher, Request
+
+batch_model = GPT(
+    vocab_size=64, d_model=16, num_layers=1, num_heads=2,
+    num_kv_heads=1, d_ff=32, max_seq_len=32,
+)
+batcher = ContinuousBatcher(lambda: InferenceEngine(batch_model))
+requests = [
+    Request(i, torch.randint(0, 64, (1, 4)), max_new=3)
+    for i in range(3)
+]
+for request in requests:
+    batcher.add_request(request)
+batch_stats = batcher.run_until_done(max_batch=3)
+check("相同长度请求使用一次 Batched Prefill", batch_stats["prefill_batches"] == 1)
+check("Decode 按 batch 执行", batch_stats["decode_batches"] == 2)
+check("批量大小达到 3", batch_stats["max_batch_size"] == 3)
+check("每个请求严格生成 max_new", all(r.generated == 3 for r in requests))
+
+single = Request(99, torch.randint(0, 64, (1, 3)), max_new=1)
+batcher = ContinuousBatcher(lambda: InferenceEngine(batch_model))
+batcher.add_request(single)
+single_stats = batcher.run_until_done()
+check("max_new=1 不会多生成", single.generated == 1)
+check("max_new=1 无额外 Decode", single_stats["decode_batches"] == 0)
+
+
+# ============================================================
+# 10. Prefix Cache
+# ============================================================
+print("\n【Prefix Cache】")
+from pytorch.prefix_cache import PrefixKVCache
+
+prefix_engine = InferenceEngine(batch_model, cache_backend="paged", block_size=3)
+prefix_cache = PrefixKVCache(prefix_engine)
+shared = torch.randint(0, 64, (1, 5))
+suffix_a = torch.randint(0, 64, (1, 2))
+suffix_b = torch.randint(0, 64, (1, 3))
+full_a = torch.cat([shared, suffix_a], dim=1)
+full_b = torch.cat([shared, suffix_b], dim=1)
+cached_a = prefix_cache.prefill_with_prefix(full_a, prefix_len=shared.shape[1])
+cached_b = prefix_cache.prefill_with_prefix(full_b)
+check("共享前缀 B 命中", prefix_cache.cache_hit(full_b))
+check(
+    "Prefix Cache 请求 A 数值一致",
+    torch.allclose(cached_a, batch_model(full_a)[:, -1:, :], atol=1e-5, rtol=1e-5),
+)
+check(
+    "Prefix Cache 恢复快照后请求 B 数值一致",
+    torch.allclose(cached_b, batch_model(full_b)[:, -1:, :], atol=1e-5, rtol=1e-5),
+)
+
 
 # ============================================================
 # 汇总
@@ -215,3 +358,5 @@ if errors:
 else:
     safe_print(f"{PASS} 全部测试通过!")
 print(f"{'='*50}")
+
+raise SystemExit(1 if errors else 0)

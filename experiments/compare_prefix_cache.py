@@ -37,9 +37,8 @@ def main():
         return (time.perf_counter() - t0) * 1000
 
     def time_prefix(ids):
-        pcache.reset()
         t0 = time.perf_counter()
-        pcache.prefill_with_prefix(ids)
+        pcache.prefill_with_prefix(ids, prefix_len=prefix.shape[1])
         return (time.perf_counter() - t0) * 1000
 
     cold_a = time_prefill(full_a)

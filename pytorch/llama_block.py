@@ -15,8 +15,7 @@ class RMSNorm(nn.Module):
         self.eps = eps
 
     def forward(self, x):
-        rms = torch.sqrt(x.pow(2).mean(-1, keepdim=True) + self.eps)
-        return x / rms * self.weight
+        return F.rms_norm(x, (x.shape[-1],), self.weight, self.eps)
 
 
 class SwiGLU(nn.Module):
@@ -34,21 +33,24 @@ class SwiGLU(nn.Module):
 class LlamaDecoderBlock(nn.Module):
     """完整 Llama Decoder Block（单层）"""
     def __init__(self, d_model, num_heads, num_kv_heads, d_ff,
-                 use_rope=True, max_seq_len=128):
+                 use_rope=True, max_seq_len=128, attention_backend="sdpa"):
         super().__init__()
         self.rmsnorm1 = RMSNorm(d_model)
         self.rmsnorm2 = RMSNorm(d_model)
         self.self_attn = GroupedQueryAttention(
             d_model, num_heads, num_kv_heads,
             use_rope=use_rope, max_seq_len=max_seq_len,
+            attention_backend=attention_backend,
         )
         self.swiglu = SwiGLU(d_model, d_ff)
 
-    def forward(self, x, mask=None, positions=None):
+    def forward(self, x, mask=None, positions=None, is_causal=False):
         # Pre-Norm Attention
         residual = x
         x = self.rmsnorm1(x)
-        x = self.self_attn(x, mask=mask, positions=positions)
+        x = self.self_attn(
+            x, mask=mask, positions=positions, is_causal=is_causal
+        )
         x = x + residual
 
         # Pre-Norm SwiGLU FFN
@@ -78,12 +80,15 @@ class GPT(nn.Module):
     """
     def __init__(self, vocab_size=1000, d_model=64, num_layers=4,
                  num_heads=4, num_kv_heads=2, d_ff=128,
-                 max_seq_len=128, use_rope=True):
+                 max_seq_len=128, use_rope=True, attention_backend="sdpa"):
         super().__init__()
+        self.max_seq_len = max_seq_len
+        self.attention_backend = attention_backend
         self.token_embedding = nn.Embedding(vocab_size, d_model)
         self.layers = nn.ModuleList([
             LlamaDecoderBlock(d_model, num_heads, num_kv_heads, d_ff,
-                              use_rope=use_rope, max_seq_len=max_seq_len)
+                              use_rope=use_rope, max_seq_len=max_seq_len,
+                              attention_backend=attention_backend)
             for _ in range(num_layers)
         ])
         self.norm = RMSNorm(d_model)
@@ -100,16 +105,14 @@ class GPT(nn.Module):
         x = self.token_embedding(x)
 
         # 因果掩码
-        if mask is None:
-            mask = torch.triu(
-                torch.full((seq_len, seq_len), float('-inf'), device=x.device),
-                diagonal=1
-            ).unsqueeze(0).unsqueeze(0)
+        is_causal = mask is None
 
         positions = torch.arange(seq_len, device=x.device)
 
         for layer in self.layers:
-            x = layer(x, mask=mask, positions=positions)
+            x = layer(
+                x, mask=mask, positions=positions, is_causal=is_causal
+            )
 
         x = self.norm(x)
         return self.lm_head(x)

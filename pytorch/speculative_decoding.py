@@ -2,11 +2,12 @@
 PyTorch Speculative Decoding — 真实 GPT 小模型适配
 
 将 pytorch.llama_block.GPT 接入 modern_llm.speculative_decoding.SpeculativeDecoder，
-用不同规模的训练前随机权重模型验证端到端加速比与接受率。
+用不同规模的训练前随机权重模型验证执行链路、墙钟耗时与接受率。
 """
 import numpy as np
 import torch
 import torch.nn.functional as F
+import time
 
 try:
     from .llama_block import GPT
@@ -82,15 +83,28 @@ def run_speculative_benchmark(
 
     baseline_tokens = []
     current = prefix.copy()
+    if device == "cuda":
+        torch.cuda.synchronize()
+    baseline_start = time.perf_counter()
     for _ in range(max_new_tokens):
         tok, _ = target.generate_token(current)
         baseline_tokens.append(tok)
         current = np.append(current, tok)
+    if device == "cuda":
+        torch.cuda.synchronize()
+    baseline_ms = (time.perf_counter() - baseline_start) * 1000
 
     decoder = SpeculativeDecoder(draft, target, gamma=gamma)
+    if device == "cuda":
+        torch.cuda.synchronize()
+    speculative_start = time.perf_counter()
     output = decoder.generate(prefix, max_new_tokens=max_new_tokens)
+    if device == "cuda":
+        torch.cuda.synchronize()
+    speculative_ms = (time.perf_counter() - speculative_start) * 1000
 
-    speedup = max_new_tokens / max(decoder.stats["target_calls"], 1)
+    target_call_ratio = max_new_tokens / max(decoder.stats["target_calls"], 1)
+    wall_time_speedup = baseline_ms / speculative_ms
     total = decoder.stats["accepted"] + decoder.stats["rejected"]
     accept_rate = decoder.stats["accepted"] / total if total else 1.0
 
@@ -99,7 +113,11 @@ def run_speculative_benchmark(
         "max_new_tokens": max_new_tokens,
         "target_calls_baseline": max_new_tokens,
         "target_calls_spec": decoder.stats["target_calls"],
-        "speedup": speedup,
+        "speedup": wall_time_speedup,
+        "wall_time_speedup": wall_time_speedup,
+        "target_call_ratio": target_call_ratio,
+        "baseline_ms": baseline_ms,
+        "speculative_ms": speculative_ms,
         "accept_rate": accept_rate,
         "output_len": len(output) - len(prefix),
         "stats": decoder.stats,

@@ -9,7 +9,7 @@ import torch
 class PagedKVCache:
     """按 block_size 分块的 K/V 存储。"""
 
-    def __init__(self, block_size=16, num_heads=4, d_k=64, device="cpu", dtype=torch.float32):
+    def __init__(self, block_size=16, num_heads=None, d_k=None, device="cpu", dtype=torch.float32):
         self.block_size = block_size
         self.num_heads = num_heads
         self.d_k = d_k
@@ -18,16 +18,32 @@ class PagedKVCache:
         self.k_blocks = []
         self.v_blocks = []
         self.length = 0
+        self.batch_size = None
 
     def _new_block(self):
-        k = torch.zeros(1, self.num_heads, self.block_size, self.d_k, device=self.device, dtype=self.dtype)
-        v = torch.zeros(1, self.num_heads, self.block_size, self.d_k, device=self.device, dtype=self.dtype)
+        k = torch.empty(
+            self.batch_size, self.num_heads, self.block_size, self.d_k,
+            device=self.device, dtype=self.dtype,
+        )
+        v = torch.empty_like(k)
         self.k_blocks.append(k)
         self.v_blocks.append(v)
         return len(self.k_blocks) - 1
 
     def append(self, k_new, v_new):
-        """k_new, v_new: (1, H, S, d_k)"""
+        """Append tensors shaped ``(batch, heads, seq, head_dim)``."""
+        if k_new.shape != v_new.shape or k_new.ndim != 4:
+            raise ValueError("K and V must have the same 4-D shape")
+        if self.batch_size is None:
+            self.batch_size = k_new.shape[0]
+            self.num_heads = k_new.shape[1]
+            self.d_k = k_new.shape[3]
+            self.device = k_new.device
+            self.dtype = k_new.dtype
+        expected = (self.batch_size, self.num_heads, self.d_k)
+        actual = (k_new.shape[0], k_new.shape[1], k_new.shape[3])
+        if actual != expected:
+            raise ValueError(f"cache shape mismatch: expected {expected}, got {actual}")
         S = k_new.shape[2]
         offset = 0
         while offset < S:
@@ -37,8 +53,8 @@ class PagedKVCache:
             pos = self.length % self.block_size
             space = self.block_size - pos
             take = min(space, S - offset)
-            self.k_blocks[bi][0, :, pos:pos + take] = k_new[0, :, offset:offset + take]
-            self.v_blocks[bi][0, :, pos:pos + take] = v_new[0, :, offset:offset + take]
+            self.k_blocks[bi][:, :, pos:pos + take] = k_new[:, :, offset:offset + take]
+            self.v_blocks[bi][:, :, pos:pos + take] = v_new[:, :, offset:offset + take]
             self.length += take
             offset += take
 
@@ -55,6 +71,13 @@ class PagedKVCache:
             parts_v.append(self.v_blocks[bi][:, :, :end])
         return torch.cat(parts_k, dim=2), torch.cat(parts_v, dim=2)
 
+    def iter_blocks(self):
+        """Yield only the populated slice of each physical block."""
+        for bi, (k, v) in enumerate(zip(self.k_blocks, self.v_blocks)):
+            end = min(self.block_size, self.length - bi * self.block_size)
+            if end > 0:
+                yield k[:, :, :end], v[:, :, :end]
+
     @property
     def num_blocks(self):
         return len(self.k_blocks)
@@ -66,3 +89,17 @@ class PagedKVCache:
         used = self.length
         cap = len(self.k_blocks) * self.block_size
         return used / cap if cap else 0.0
+
+    @property
+    def allocated_bytes(self):
+        return sum(
+            k.numel() * k.element_size() + v.numel() * v.element_size()
+            for k, v in zip(self.k_blocks, self.v_blocks)
+        )
+
+    @property
+    def used_bytes(self):
+        if self.batch_size is None:
+            return 0
+        elements = 2 * self.batch_size * self.num_heads * self.length * self.d_k
+        return elements * torch.empty((), dtype=self.dtype).element_size()

@@ -20,14 +20,11 @@ def main():
     model = GPT(vocab_size=256, d_model=64, num_layers=2, num_heads=4, num_kv_heads=2, d_ff=128)
 
     def factory():
-        return InferenceEngine(GPT(
-            vocab_size=256, d_model=64, num_layers=2,
-            num_heads=4, num_kv_heads=2, d_ff=128,
-        ))
+        return InferenceEngine(model)
 
     batcher = ContinuousBatcher(factory)
     for i in range(3):
-        prompt = torch.randint(0, 256, (1, 8 + i * 4))
+        prompt = torch.randint(0, 256, (1, 8))
         batcher.add_request(Request(req_id=i, prompt=prompt, max_new=6))
 
     stats = batcher.run_until_done(max_batch=3)
@@ -37,6 +34,8 @@ def main():
     print(f"  请求数: 3  max_batch: 3  每请求 max_new: 6")
     print(f"  prefill_batches: {stats['prefill_batches']}")
     print(f"  decode_batches:  {stats['decode_batches']}")
+    print(f"  model_forwards:  {stats['model_forwards']}")
+    print(f"  max_batch_size:  {stats['max_batch_size']}")
     print(f"  tokens_out:      {stats['tokens_out']}")
 
 

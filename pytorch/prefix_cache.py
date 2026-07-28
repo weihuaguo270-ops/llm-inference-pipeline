@@ -1,58 +1,76 @@
-"""
-Prefix KV Cache — 共享 system prompt 的 Cache 复用
+"""Reusable KV snapshots for requests that share a token prefix."""
 
-Agent / RAG 场景中，多条请求共享相同前缀时，跳过重复 Prefill。
-"""
 import torch
+
+from .cache_backends import build_cache_backend
 
 
 class PrefixKVCache:
-    """缓存前缀 token 的 KV，后缀变化时只 Prefill 增量部分。"""
+    """Cache an immutable prefix snapshot and replay only each request suffix."""
 
     def __init__(self, engine):
         self.engine = engine
         self.prefix_ids = None
+        self._prefix_caches = None
 
     def reset(self):
         self.prefix_ids = None
+        self._prefix_caches = None
         self.engine.reset()
 
+    def _clone_caches(self, caches):
+        cloned = []
+        for cache in caches:
+            k, v = cache.materialize()
+            cloned.append(build_cache_backend(
+                self.engine.cache_backend,
+                k.clone(),
+                v.clone(),
+                block_size=self.engine.block_size,
+                max_seq_len=self.engine.max_seq_len,
+            ))
+        return cloned
+
     @torch.no_grad()
-    def prefill_with_prefix(self, full_ids: torch.Tensor) -> torch.Tensor:
-        """
-        full_ids: (1, total_len)
-        若前缀匹配则只处理 suffix；否则全量 Prefill 并更新缓存前缀。
+    def prime(self, prefix_ids: torch.Tensor) -> torch.Tensor:
+        """Build and retain an immutable KV snapshot for ``prefix_ids``."""
+        logits = self.engine.prefill(prefix_ids)
+        self.prefix_ids = prefix_ids.clone()
+        self._prefix_caches = self._clone_caches(self.engine.kv_caches)
+        return logits
+
+    def _restore_prefix(self):
+        self.engine.kv_caches = self._clone_caches(self._prefix_caches)
+        self.engine.seq_len = self.prefix_ids.shape[1]
+
+    @torch.no_grad()
+    def prefill_with_prefix(self, full_ids: torch.Tensor, prefix_len=None) -> torch.Tensor:
+        """Prefill a request, reusing a previously primed prefix when possible.
+
+        On the first call, ``prefix_len`` selects the reusable part. Omitting it
+        preserves the old exact-prefix behavior by caching the full input.
         """
         if self.prefix_ids is None:
-            logits = self.engine.prefill(full_ids)
-            self.prefix_ids = full_ids.clone()
-            return logits
+            reusable_len = full_ids.shape[1] if prefix_len is None else prefix_len
+            if reusable_len <= 0 or reusable_len > full_ids.shape[1]:
+                raise ValueError("prefix_len must be within the input sequence")
+            self.prime(full_ids[:, :reusable_len])
 
-        plen = self.prefix_ids.shape[1]
-        if plen <= full_ids.shape[1] and torch.equal(full_ids[:, :plen], self.prefix_ids):
-            suffix = full_ids[:, plen:]
-            if suffix.shape[1] == 0:
-                return self.engine.model(self.prefix_ids)
-            for i in range(suffix.shape[1]):
-                pos = torch.tensor([self.engine.seq_len], device=full_ids.device)
-                x = self.engine.model.token_embedding(suffix[:, i:i + 1])
-                new_caches = []
-                for li, layer in enumerate(self.engine.model.layers):
-                    x, cache = self.engine._layer_forward(
-                        layer, x, pos, self.engine.kv_caches[li], prefill=False
-                    )
-                    new_caches.append(cache)
-                self.engine.kv_caches = new_caches
-                self.engine.seq_len += 1
-                x = self.engine.model.norm(x)
-            return self.engine.model.lm_head(x)
+        if not self.cache_hit(full_ids):
+            return self.engine.prefill(full_ids)
 
-        logits = self.engine.prefill(full_ids)
-        self.prefix_ids = full_ids.clone()
-        return logits
+        self._restore_prefix()
+        suffix = full_ids[:, self.prefix_ids.shape[1]:]
+        if suffix.shape[1] == 0:
+            return self.engine.model(self.prefix_ids)[:, -1:, :]
+
+        return self.engine.prefill_suffix(suffix)[:, -1:, :]
 
     def cache_hit(self, full_ids: torch.Tensor) -> bool:
         if self.prefix_ids is None:
             return False
-        plen = self.prefix_ids.shape[1]
-        return plen <= full_ids.shape[1] and torch.equal(full_ids[:, :plen], self.prefix_ids)
+        prefix_len = self.prefix_ids.shape[1]
+        return (
+            prefix_len <= full_ids.shape[1]
+            and torch.equal(full_ids[:, :prefix_len], self.prefix_ids)
+        )

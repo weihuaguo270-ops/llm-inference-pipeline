@@ -44,3 +44,5 @@ if total == 0:
 else:
     safe_print(f"{FAIL} 共 {total} 项失败: np_impl={np_result}, modern_llm={modern_result}")
 safe_print(f"{'='*60}")
+
+raise SystemExit(1 if total else 0)
