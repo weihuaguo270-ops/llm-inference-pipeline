@@ -3,9 +3,9 @@ requires = ["setuptools>=61.0"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "transformer-attention"
-version = "0.1.0"
-description = "LLM 推理链路优化对照实现 — KV Cache、GQA/MLA 压缩、Speculative Decoding、StreamingLLM；Prefill/Decode 基准与 Cache/Decode 加速实验（NumPy/PyTorch，教学规模）"
+name = "llm-inference-pipeline"
+version = "0.2.0"
+description = "LLM 推理链路优化 — Prefill/Decode 基准、Static/Paged KV Cache、GQA/MLA、Speculative Decoding；NumPy 可读参考 + PyTorch SDPA/AMP/compile 性能路径"
 readme = "README.md"
 requires-python = ">=3.10"
 

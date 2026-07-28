@@ -1,5 +1,5 @@
 """
-Transformer 推理链路优化 — 统一测试入口
+LLM 推理链路优化 — 统一测试入口
 
 运行两个独立测试套件：
   np_impl/     — 推理基线（Attention + KV Cache）
@@ -19,7 +19,7 @@ from console_io import FAIL, PASS, configure_stdio, safe_print
 configure_stdio()
 
 safe_print("=" * 60)
-safe_print("Transformer 推理链路优化 — 全部测试")
+safe_print("LLM 推理链路优化 — 全部测试")
 safe_print("=" * 60)
 
 # ── Part 1: 原始 Transformer ──

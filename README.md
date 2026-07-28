@@ -1,6 +1,6 @@
-# Transformer 推理链路优化
+# LLM 推理链路优化
 
-[![CI](https://github.com/weihuaguo270-ops/transformer-attention/actions/workflows/test.yml/badge.svg)](https://github.com/weihuaguo270-ops/transformer-attention/actions/workflows/test.yml) [![Python 3.10+](https://img.shields.io/badge/python-3.10%2B-blue)](https://www.python.org) [![License: MIT](https://img.shields.io/badge/license-MIT-green)](LICENSE)
+[![CI](https://github.com/weihuaguo270-ops/llm-inference-pipeline/actions/workflows/test.yml/badge.svg)](https://github.com/weihuaguo270-ops/llm-inference-pipeline/actions/workflows/test.yml) [![Python 3.10+](https://img.shields.io/badge/python-3.10%2B-blue)](https://www.python.org) [![License: MIT](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 
 **LLM 自回归推理链路的实现与基准** — NumPy 提供可读的数学参考；PyTorch 2.x 路径面向真实性能工程，默认使用原生 SDPA/GQA kernel、预分配 Static KV Cache、`inference_mode`，并支持 CUDA AMP 与 `torch.compile`。仓库提供可复现的延迟、缓存和解码实验，不包含大规模预训练设施。
 
@@ -50,7 +50,7 @@ python test_all.py
 ## 项目结构
 
 ```
-transformer-attention/
+llm-inference-pipeline/
 │
 ├── np_impl/                    # 推理基线：Attention + KV Cache（NumPy）
 │   ├── attention.py            单头 Self-Attention + 因果掩码

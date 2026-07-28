@@ -2,7 +2,10 @@
 
 ## Unreleased
 
+## 0.2.0 (2026-07-28)
+
 ### Changed
+- 仓库与包重命名: `transformer-attention` → `llm-inference-pipeline`，与「LLM 推理链路优化」定位对齐
 - PyTorch 性能路径默认切换为原生 SDPA/GQA + 预分配 Static KV Cache + `torch.inference_mode`
 - 新增 CUDA FP16/BF16 autocast、matmul precision 与可选 `torch.compile`；Windows 缺少 MSVC 时提供前置诊断
 - 新增 `benchmark_pytorch_optimized`，在相同权重上对照 eager、SDPA、动态/静态 Cache、AMP 与 compile
@@ -26,7 +29,6 @@
 - 测试输出改用 `[PASS]` / `[FAIL]` + `console_io.safe_print`；CI 增加 Windows × 3.10/3.11
 
 ## 0.1.0 (2026-07-12)
-
 ### Changed
 - 仓库更名: attention-from-scratch → transformer-attention
 - README 重写为中文专业版
