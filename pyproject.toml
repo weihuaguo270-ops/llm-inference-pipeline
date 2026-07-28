@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "transformer-attention"
 version = "0.1.0"
-description = "纯 NumPy + PyTorch 手写 Transformer Attention 机制 — Self-Attention、因果掩码、多头注意力、KV Cache、位置编码、完整 Transformer Block"
+description = "LLM 推理链路优化对照实现 — KV Cache、GQA/MLA 压缩、Speculative Decoding、StreamingLLM；Prefill/Decode 基准与 Cache/Decode 加速实验（NumPy/PyTorch，教学规模）"
 readme = "README.md"
 requires-python = ">=3.10"
 

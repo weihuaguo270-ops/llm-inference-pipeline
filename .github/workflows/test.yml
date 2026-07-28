@@ -40,6 +40,8 @@ jobs:
       run: |
         pip install torch --extra-index-url https://download.pytorch.org/whl/cpu
         python -m experiments.benchmark_attention --seq_len 128 --warmup 2 --iter 5
+        python -m experiments.benchmark_prefill_decode --prompt_len 64 --decode_steps 8 --warmup 2 --reps 5
+        python -m experiments.compare_decoding_pytorch
 
   test-windows:
     runs-on: windows-latest

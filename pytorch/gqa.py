@@ -52,7 +52,7 @@ class GroupedQueryAttention(nn.Module):
         out[..., 1::2] = x_even * sin + x_odd * cos
         return out
 
-    def forward(self, x, mask=None, positions=None):
+    def forward(self, x, mask=None, positions=None, return_cache=False):
         """
         前向传播
         x: (batch, seq, d_model)
@@ -89,4 +89,36 @@ class GroupedQueryAttention(nn.Module):
 
         # 合并
         out = out.transpose(1, 2).contiguous().view(B, S, -1)
-        return self.Wo(out)
+        result = self.Wo(out)
+        if return_cache:
+            return result, (K, V)
+        return result
+
+    def forward_with_cache(self, x, positions, kv_cache=None):
+        """单步 Decode：x (B,1,d)，positions 为当前位置索引，返回 (out, new_cache)。"""
+        B, S, _ = x.shape
+        assert S == 1
+
+        Q = self.Wq(x).view(B, S, self.num_heads, self.d_k).transpose(1, 2)
+        K = self.Wk(x).view(B, S, self.num_kv_heads, self.d_k).transpose(1, 2)
+        V = self.Wv(x).view(B, S, self.num_kv_heads, self.d_k).transpose(1, 2)
+
+        if self.use_rope:
+            Q = self._apply_rope(Q, positions)
+            K = self._apply_rope(K, positions)
+
+        n_repeat = self.num_heads // self.num_kv_heads
+        if n_repeat > 1:
+            K = K.repeat_interleave(n_repeat, dim=1)
+            V = V.repeat_interleave(n_repeat, dim=1)
+
+        if kv_cache is not None:
+            K_cache, V_cache = kv_cache
+            K = torch.cat([K_cache, K], dim=2)
+            V = torch.cat([V_cache, V], dim=2)
+
+        scores = (Q @ K.transpose(-2, -1)) / (self.d_k ** 0.5)
+        attn = F.softmax(scores, dim=-1)
+        out = attn @ V
+        out = out.transpose(1, 2).contiguous().view(B, S, -1)
+        return self.Wo(out), (K, V)

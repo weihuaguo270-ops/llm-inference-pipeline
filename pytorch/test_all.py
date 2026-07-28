@@ -171,6 +171,40 @@ check("3层堆叠稳定", torch.isfinite(x).all().item())
 
 
 # ============================================================
+# 7. MLA (PyTorch)
+# ============================================================
+print("\n【MLA PyTorch — 解压 vs 吸收】")
+from pytorch.mla import MultiHeadLatentAttention
+
+torch.manual_seed(0)
+mla = MultiHeadLatentAttention(d_model=8, num_heads=2, d_c=3, d_kv_rope=4, max_seq_len=32)
+mla.absorb_weights()
+x_step = torch.randn(1, 1, 8)
+out_d, c_d, k_d = mla.forward_with_cache(x_step, use_absorb=False)
+out_a, c_a, k_a = mla.forward_with_cache(x_step, use_absorb=True)
+check("MLA absorb 输出形状", out_a.shape == (1, 1, 8))
+max_diff = (out_d - out_a).abs().max().item()
+check("MLA absorb≈解压", max_diff < 1e-5, f"max_diff={max_diff}")
+
+
+# ============================================================
+# 8. InferenceEngine (Prefill + Cache Decode)
+# ============================================================
+print("\n【InferenceEngine Prefill/Decode】")
+from pytorch.llama_block import GPT
+from pytorch.inference_engine import InferenceEngine
+
+gpt = GPT(vocab_size=128, d_model=32, num_layers=2, num_heads=4, num_kv_heads=2, d_ff=64, max_seq_len=64)
+eng = InferenceEngine(gpt)
+prompt = torch.randint(0, 128, (1, 10))
+logits_p = eng.prefill(prompt)
+tok = torch.randint(0, 128, (1, 1))
+logits_d = eng.decode_step(tok)
+check("Prefill logits 形状", logits_p.shape == (1, 10, 128))
+check("Decode logits 形状", logits_d.shape == (1, 1, 128))
+
+
+# ============================================================
 # 汇总
 # ============================================================
 print(f"\n{'='*50}")

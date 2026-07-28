@@ -1,26 +1,27 @@
-# 现代 LLM 架构（2023-2024）
+# 推理优化实现（2023-2024）
 
-`modern_llm/` — 纯 NumPy 实现，覆盖当前主流大模型使用的 Attention 变体。
+`modern_llm/` — 纯 NumPy 实现，覆盖当前主流 LLM 推理链路上的 Attention 变体与 Decode 加速手段。
 
-包含 Llama 路线（GQA + RMSNorm + SwiGLU）和 DeepSeek 路线（MLA）两大类方案。
-两条路线从原始 Transformer 分叉而来，解决不同层面的优化问题。
+包含 Llama 路线（GQA + Pre-Norm Block）和 DeepSeek 路线（MLA 潜空间压缩）两大类 Cache 优化，以及 Speculative Decoding、StreamingLLM 等 Decode 层加速。
 
 独立包，不依赖 `np_impl/` 目录。
 
 ## 文件说明
 
-| 文件 | 内容 |
-|------|------|
-| `gqa.py` | Grouped Query Attention：分组机制、KV 头广播、与 RoPE 集成 |
-| `llama_block.py` | Llama Decoder Block：Pre-Norm + RMSNorm + SwiGLU + GQA + RoPE |
-| `mla.py` | Multi-head Latent Attention：低维 KV 压缩、**解压/吸收双路径**、数值对齐 |
-| `speculative_decoding.py` | Speculative Decoding：Draft Model 并行验证 |
-| `attention_sinks.py` | StreamingLLM：Attention Sinks 长文本缓存优化 |
-| `rotary.py` | RoPE 旋转位置编码（独立模块） |
+| 文件 | 推理链路角色 |
+|------|-------------|
+| `gqa.py` | **Cache 压缩**：分组 KV 头、广播、与 RoPE 集成 |
+| `mla.py` | **Cache 压缩 + 计算优化**：低维 KV 压缩、解压/吸收双路径 |
+| `attention_sinks.py` | **Cache 管理**：StreamingLLM 长文本淘汰策略 |
+| `speculative_decoding.py` | **Decode 加速**：Draft Model 并行验证 |
+| `lookahead_decoding.py` | **Decode 加速**：n-gram 候选验证（无 draft 模型） |
+| `medusa_heads.py` | **Decode 加速**：多 lm head 并行预测 |
+| `llama_block.py` | 推理常用 Block 结构（Pre-Norm + RMSNorm + SwiGLU + GQA） |
+| `rotary.py` | RoPE 旋转位置编码（长度外推） |
 | `utils.py` | 工具函数 |
 | `test.py` | 冒烟测试（含 MLA 吸收≈解压） |
 
-吸收用法：
+MLA 吸收路径用法：
 
 ```python
 from modern_llm.mla import MultiHeadLatentAttention
