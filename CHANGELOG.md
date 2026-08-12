@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+### Documentation and evidence
+
+- Replaced machine-specific CUDA reproduction paths with repository-relative commands
+- Added the normalized RTX 4060 source result and `agent-release-evidence/v1` budget report
+
 ## 0.2.0 (2026-08-12)
 
 ### Release additions

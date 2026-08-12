@@ -16,3 +16,12 @@ python experiments/runs/compare.py
 ```
 
 支持按 tag、参数过滤，横向对比不同实验的 loss 曲线和最终指标。
+
+## 发布性能证据
+
+以下文件保存已经用于 Release 的、带环境元数据且使用仓库相对路径的结果：
+
+- `pytorch_cuda_4060_20260812_prefill_decode.json`：固定 RTX 4060 负载的原始 TTFT/TPOT 结果；
+- `agent_release_performance_20260812.json`：`agent-release-evidence/v1` 预算判断。
+
+证据仅适用于文件记录的硬件、软件版本和负载，不代表其他 GPU 或线上流量收益。

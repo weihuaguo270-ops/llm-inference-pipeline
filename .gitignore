@@ -8,6 +8,8 @@ __pycache__/
 
 # Experiment artifacts
 experiments/runs/*.json
+!experiments/runs/pytorch_cuda_4060_20260812_prefill_decode.json
+!experiments/runs/agent_release_performance_20260812.json
 experiments/runs/*/
 *.pyc
 __pycache__/

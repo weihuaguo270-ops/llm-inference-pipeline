@@ -99,15 +99,15 @@ python experiments/runs/compare.py
 ```
 ## 2026-08-12 CUDA 复测
 
-专用环境：`D:\agent_learning\.venv-inference`。实测环境为 PyTorch
-`2.13.0+cu130`、CUDA 13.0、RTX 4060 Laptop GPU。复现命令：
+实测环境为 PyTorch `2.13.0+cu130`、CUDA 13.0、RTX 4060 Laptop GPU。先在仓库外
+创建独立虚拟环境，再从仓库根目录执行：
 
 ```powershell
-D:\agent_learning\.venv-inference\Scripts\python.exe -m experiments.benchmark_prefill_decode `
+python -m experiments.benchmark_prefill_decode `
   --device cuda --require-cuda --prompt_len 256 --decode_steps 32 --d_model 256 `
   --num_layers 4 --num_heads 8 --num_kv_heads 2 --warmup 10 --reps 50 `
   --cache_backend static --attention_backend sdpa --model_dtype float16 `
-  --json D:\agent_learning\gpu-evidence\pytorch_cuda_4060_20260812_prefill_decode.json
+  --json experiments/runs/pytorch_cuda_4060_20260812_prefill_decode.json
 ```
 
 Release evidence must use `--require-cuda`. This prevents a missing driver or CPU-only
@@ -120,4 +120,6 @@ python -m pip install -c constraints/cuda130.txt torch numpy \
 
 串行复测结果：TTFT mean 2.68 ms，缓存 TPOT mean 2.71 ms，KV Cache
 相对无 Cache 为 1.19x，分配 303104 bytes，峰值设备内存 23238656 bytes。
+原始结果见 [`runs/pytorch_cuda_4060_20260812_prefill_decode.json`](runs/pytorch_cuda_4060_20260812_prefill_decode.json)，
+发布预算结果见 [`runs/agent_release_performance_20260812.json`](runs/agent_release_performance_20260812.json)。
 这些数字只对记录的模型尺寸、输入长度、软件版本和硬件有效。

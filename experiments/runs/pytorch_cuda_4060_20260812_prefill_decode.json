@@ -1,0 +1,42 @@
+{
+  "benchmark": "prefill_decode",
+  "environment": {
+    "python": "3.11.15",
+    "platform": "Windows-10-10.0.26200-SP0",
+    "torch": "2.13.0+cu130",
+    "device": "cuda",
+    "cuda": "13.0",
+    "accelerator": "NVIDIA GeForce RTX 4060 Laptop GPU"
+  },
+  "config": {
+    "device": "cuda",
+    "prompt_len": 256,
+    "decode_steps": 32,
+    "d_model": 256,
+    "num_layers": 4,
+    "num_heads": 8,
+    "num_kv_heads": 2,
+    "warmup": 10,
+    "reps": 50,
+    "seed": 42,
+    "cache_backend": "static",
+    "block_size": 16,
+    "attention_backend": "sdpa",
+    "amp_dtype": null,
+    "model_dtype": "float16",
+    "matmul_precision": "high",
+    "compile_mode": null,
+    "json": "experiments/runs/pytorch_cuda_4060_20260812_prefill_decode.json"
+  },
+  "metrics": {
+    "prefill": {"mean_ms": 2.682453999586869, "p50_ms": 2.620700000989018, "p95_ms": 3.146290000586305, "samples": 50},
+    "decode_cached": {"mean_ms": 2.7087800002482254, "p50_ms": 2.661350001289975, "p95_ms": 3.083449999758159, "samples": 50},
+    "decode_uncached": {"mean_ms": 3.2301166666002246, "p50_ms": 3.126949999568751, "p95_ms": 3.860125000937841, "samples": 12},
+    "ttft_ms": 2.682453999586869,
+    "tpot_cached_ms": 2.7087800002482254,
+    "cache_speedup": 1.1924617969359732,
+    "cache_bytes": 303104,
+    "cache_used_bytes": 263168,
+    "peak_device_bytes": 23238656
+  }
+}

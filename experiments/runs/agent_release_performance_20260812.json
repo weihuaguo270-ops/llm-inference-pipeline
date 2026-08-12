@@ -1,0 +1,36 @@
+{
+  "schema_version": "agent-release-evidence/v1",
+  "evidence_type": "inference_performance",
+  "created_at": "2026-08-12T14:59:49Z",
+  "source": "prefill_decode",
+  "environment": {
+    "python": "3.11.15",
+    "platform": "Windows-10-10.0.26200-SP0",
+    "torch": "2.13.0+cu130",
+    "device": "cuda",
+    "cuda": "13.0",
+    "accelerator": "NVIDIA GeForce RTX 4060 Laptop GPU"
+  },
+  "metrics": {
+    "ttft_ms": 2.682453999586869,
+    "tpot_cached_ms": 2.7087800002482254,
+    "cache_speedup": 1.1924617969359732,
+    "cache_bytes": 303104,
+    "cache_used_bytes": 263168,
+    "peak_device_bytes": 23238656
+  },
+  "budget": {
+    "max_ttft_ms": 5.0,
+    "max_tpot_ms": 5.0,
+    "max_cache_bytes": 400000,
+    "max_peak_device_bytes": 1000000000
+  },
+  "checks": [
+    {"metric": "ttft_ms", "operator": "<=", "limit": 5.0, "actual": 2.682453999586869, "passed": true},
+    {"metric": "tpot_cached_ms", "operator": "<=", "limit": 5.0, "actual": 2.7087800002482254, "passed": true},
+    {"metric": "cache_bytes", "operator": "<=", "limit": 400000, "actual": 303104, "passed": true},
+    {"metric": "peak_device_bytes", "operator": "<=", "limit": 1000000000, "actual": 23238656, "passed": true}
+  ],
+  "passed": true,
+  "claim_boundary": "Benchmark evidence is valid only for the recorded environment and workload."
+}
