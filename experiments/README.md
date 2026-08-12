@@ -66,6 +66,20 @@ python -m experiments.compare_continuous_batching
 
 使用 `--json` 时会记录运行参数、Python/PyTorch/设备环境及结构化指标，便于固定环境下重复对照。
 
+发布门禁不直接消费“加速比”结论，而是消费带环境信息的硬预算证据：
+
+```bash
+python -m experiments.build_release_evidence experiments/runs/prefill_decode.json \
+  --out experiments/runs/performance_evidence.json \
+  --max-ttft-ms 500 --max-tpot-ms 50 --max-cache-bytes 1073741824
+```
+
+输出使用 `agent-release-evidence/v1`，可以与 Agent 的质量和失败报告并列进入
+发布决策；它只证明记录环境和负载下的性能，不代表线上 GPU 或真实流量收益。
+
+对于 `pytorch_optimized` 这类包含多组结果的矩阵报告，必须通过 `--variant`
+显式选择配置；工具不会自动选择最快结果。
+
 ## MLA 吸收路径微基准
 
 ```bash
@@ -83,3 +97,27 @@ python -m experiments.benchmark_mla_absorb --d_model 512 --d_c 128 --seq_len 256
 ```bash
 python experiments/runs/compare.py
 ```
+## 2026-08-12 CUDA 复测
+
+专用环境：`D:\agent_learning\.venv-inference`。实测环境为 PyTorch
+`2.13.0+cu130`、CUDA 13.0、RTX 4060 Laptop GPU。复现命令：
+
+```powershell
+D:\agent_learning\.venv-inference\Scripts\python.exe -m experiments.benchmark_prefill_decode `
+  --device cuda --require-cuda --prompt_len 256 --decode_steps 32 --d_model 256 `
+  --num_layers 4 --num_heads 8 --num_kv_heads 2 --warmup 10 --reps 50 `
+  --cache_backend static --attention_backend sdpa --model_dtype float16 `
+  --json D:\agent_learning\gpu-evidence\pytorch_cuda_4060_20260812_prefill_decode.json
+```
+
+Release evidence must use `--require-cuda`. This prevents a missing driver or CPU-only
+PyTorch wheel from silently producing a CPU report. Recreate CUDA 13.0 environments with:
+
+```bash
+python -m pip install -c constraints/cuda130.txt torch numpy \
+  --index-url https://download.pytorch.org/whl/cu130
+```
+
+串行复测结果：TTFT mean 2.68 ms，缓存 TPOT mean 2.71 ms，KV Cache
+相对无 Cache 为 1.19x，分配 303104 bytes，峰值设备内存 23238656 bytes。
+这些数字只对记录的模型尺寸、输入长度、软件版本和硬件有效。

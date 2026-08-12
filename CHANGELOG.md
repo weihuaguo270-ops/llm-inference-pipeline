@@ -2,7 +2,21 @@
 
 ## Unreleased
 
-## 0.2.0 (2026-07-28)
+## 0.2.0 (2026-08-12)
+
+### Release additions
+
+- `agent-release-evidence/v1` conversion for latency, cache, and memory budgets
+- Strict `--require-cuda` mode to prevent silent CPU fallback
+- Reproducible CPU and CUDA 13.0 constraints
+- RTX 4060 benchmark evidence with environment metadata
+- Linux strict-device and performance-evidence CI checks
+
+### Verified
+
+- Portability and release-evidence regression: 7 passed
+- PyTorch 2.13.0+cu130 on RTX 4060 Laptop GPU
+- TTFT 2.68 ms and cached TPOT 2.71 ms for the recorded workload
 
 ### Changed
 - 仓库与包重命名: `transformer-attention` → `llm-inference-pipeline`，与「LLM 推理链路优化」定位对齐

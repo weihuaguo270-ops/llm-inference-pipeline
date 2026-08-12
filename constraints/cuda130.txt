@@ -1,0 +1,3 @@
+# Install with the official CUDA wheel index documented in experiments/README.md.
+numpy==2.4.6
+torch==2.13.0+cu130

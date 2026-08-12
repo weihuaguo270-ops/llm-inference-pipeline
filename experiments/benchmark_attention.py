@@ -18,6 +18,7 @@ import os
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import torch
+from experiments.device_policy import resolve_device
 import torch.nn as nn
 import torch.nn.functional as F
 
@@ -145,6 +146,7 @@ def count_params(layer) -> int:
 def main():
     parser = argparse.ArgumentParser(description="Attention 变体性能基准测试")
     parser.add_argument("--device", default="cpu", choices=["cpu", "cuda"])
+    parser.add_argument("--require-cuda", action="store_true")
     parser.add_argument("--batch", type=int, default=1)
     parser.add_argument("--seq_len", type=int, default=512)
     parser.add_argument("--d_model", type=int, default=1024)
@@ -154,6 +156,11 @@ def main():
     parser.add_argument("--warmup", type=int, default=10)
     parser.add_argument("--iter", type=int, default=100)
     args = parser.parse_args()
+    args.device = resolve_device(
+        args.device,
+        cuda_available=torch.cuda.is_available(),
+        require_cuda=args.require_cuda,
+    )
 
     B, T, D = args.batch, args.seq_len, args.d_model
     H = args.num_heads

@@ -216,6 +216,14 @@ python -m experiments.benchmark_attention --device cuda --seq_len 2048
 python -m experiments.benchmark_mla_absorb --seq_len 256 --d_model 512 --d_c 128
 ```
 
+结构化基准可转换为 `agent-release-evidence/v1`，按 TTFT、TPOT、Cache 和峰值
+设备内存预算进入 Agent 发布报告。该证据是性能栏，不参与 Agent 语义质量打分：
+
+```bash
+python -m experiments.build_release_evidence experiments/runs/prefill_decode.json \
+  --out experiments/runs/performance_evidence.json --max-ttft-ms 500 --max-tpot-ms 50
+```
+
 PyTorch 训练 pipeline 用于验证 Attention 变体（TinyStories 级，非大规模预训练）：
 
 ```bash

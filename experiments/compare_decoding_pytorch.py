@@ -12,11 +12,13 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from pytorch.speculative_decoding import run_speculative_benchmark
 from experiments.benchmark_utils import environment_metadata, write_json
+from experiments.device_policy import resolve_device
 
 
 def main():
     parser = argparse.ArgumentParser(description="PyTorch Speculative Decoding 基准")
     parser.add_argument("--device", default="cpu", choices=["cpu", "cuda"])
+    parser.add_argument("--require-cuda", action="store_true")
     parser.add_argument("--gamma", type=int, default=4)
     parser.add_argument("--max_new_tokens", type=int, default=24)
     parser.add_argument("--seed", type=int, default=42)
@@ -26,7 +28,9 @@ def main():
         import torch
         if not torch.cuda.is_available():
             print("CUDA 不可用，回退到 CPU")
-            args.device = "cpu"
+            args.device = resolve_device(
+                args.device, cuda_available=False, require_cuda=args.require_cuda
+            )
     result = run_speculative_benchmark(
         gamma=args.gamma,
         max_new_tokens=args.max_new_tokens,

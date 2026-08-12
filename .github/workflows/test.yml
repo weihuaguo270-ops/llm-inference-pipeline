@@ -43,6 +43,14 @@ jobs:
         python -m experiments.benchmark_prefill_decode --prompt_len 64 --decode_steps 8 --warmup 2 --reps 5
         python -m experiments.benchmark_pytorch_optimized --prompt_len 32 --decode_steps 4 --d_model 64 --num_layers 1 --num_heads 4 --num_kv_heads 2 --warmup 1 --reps 2
         python -m experiments.compare_decoding_pytorch
+    - name: Strict CUDA policy on CPU runner
+      run: |
+        pip install pytest
+        pytest tests/test_device_policy.py tests/test_release_evidence.py -q
+        if python -m experiments.benchmark_prefill_decode --device cuda --require-cuda --warmup 1 --reps 1; then
+          echo "expected --require-cuda to fail on CPU runner"
+          exit 1
+        fi
 
   test-windows:
     runs-on: windows-latest

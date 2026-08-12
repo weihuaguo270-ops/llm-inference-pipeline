@@ -10,6 +10,7 @@ import torch
 
 from experiments.benchmark_prefill_decode import time_fn
 from experiments.benchmark_utils import environment_metadata, summarize, write_json
+from experiments.device_policy import resolve_device
 from pytorch.inference_engine import InferenceEngine
 from pytorch.llama_block import GPT
 
@@ -88,6 +89,7 @@ def main():
         description="PyTorch eager/SDPA/Static Cache/AMP/compile 对照"
     )
     parser.add_argument("--device", default="cpu", choices=["cpu", "cuda"])
+    parser.add_argument("--require-cuda", action="store_true")
     parser.add_argument("--vocab_size", type=int, default=1024)
     parser.add_argument("--prompt_len", type=int, default=128)
     parser.add_argument("--decode_steps", type=int, default=32)
@@ -121,7 +123,9 @@ def main():
 
     if args.device == "cuda" and not torch.cuda.is_available():
         print("CUDA 不可用，回退到 CPU")
-        args.device = "cpu"
+        args.device = resolve_device(
+            args.device, cuda_available=False, require_cuda=args.require_cuda
+        )
     args.max_seq_len = args.prompt_len + args.decode_steps + 8
     torch.set_float32_matmul_precision(args.matmul_precision)
     torch.manual_seed(args.seed)
