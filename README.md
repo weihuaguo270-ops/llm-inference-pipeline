@@ -4,8 +4,20 @@
 
 **LLM 自回归推理链路的实现与基准** — NumPy 提供可读的数学参考；PyTorch 2.x 路径面向真实性能工程，默认使用原生 SDPA/GQA kernel、预分配 Static KV Cache、`inference_mode`，并支持 CUDA AMP 与 `torch.compile`。仓库提供可复现的延迟、缓存和解码实验，不包含大规模预训练设施。
 
-## 推理链路概览
+## 业务目标
 
+我把这个项目定位为 **LLM 推理方案的性能决策基线**：不是只实现 Attention 论文组件，而是把模型服务负责人会关心的首 token 延迟、单 token 延迟、吞吐、显存和质量一致性拆开测，支持“选哪种 Cache/Attention/解码策略”的工程取舍。
+
+| 业务环节 | 项目交付 | 决策用途 |
+|----------|----------|----------|
+| 延迟拆解 | Prefill/Decode、TTFT、TPOT、P50/P95 | 区分首包慢和持续生成慢 |
+| 资源预算 | Static/Paged/Prefix KV Cache、GQA/MLA | 评估显存容量、Cache 复用与碎片代价 |
+| 解码策略 | Standard、Speculative、Lookahead、Medusa | 对比调用次数、墙钟收益和质量边界 |
+| 服务化验证 | Continuous Batching、固定参数 JSON 基准 | 为容量规划和复现实验提供输入 |
+
+**当前阶段：** NumPy 数学参考与 PyTorch 小规模工程基准；共享 CI/CPU 结果不等价于线上 GPU 收益，大模型负载、真实流量和服务 SLO 仍需固定硬件与业务请求回放验证。
+
+## 推理链路概览
 自回归 LLM 推理可分为 **Prefill**（处理 prompt）与 **Decode**（逐 token 生成）两阶段。Decode 循环是延迟与显存的主要瓶颈，本仓库聚焦该链路上的优化层：
 
 ```
