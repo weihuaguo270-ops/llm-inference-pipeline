@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+### Fixed
+
+- Run the focused CI regression through `python -m pytest` so repository modules resolve consistently on clean runners
+
 ### Documentation and evidence
 
 - Replaced machine-specific CUDA reproduction paths with repository-relative commands
