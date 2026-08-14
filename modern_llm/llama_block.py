@@ -39,6 +39,7 @@ class RMSNorm:
         self.eps = eps
 
     def forward(self, x):
+        """Normalize the last hidden dimension while preserving input shape."""
         rms = np.sqrt(np.mean(x ** 2, axis=-1, keepdims=True) + self.eps)
         return x / rms * self.weight
 
@@ -69,6 +70,7 @@ class SwiGLU:
         return x * (1.0 / (1.0 + np.exp(-x)))
 
     def forward(self, x):
+        """Apply gated SiLU expansion and project back to ``d_model``."""
         gate = self.swish(x @ self.W_gate)   # 门控信号 [0~1]
         up = x @ self.W_up                    # 内容
         return (gate * up) @ self.W_down      # 选择性激活后投影回
@@ -100,6 +102,7 @@ class LlamaDecoderBlock:
         self.swiglu = SwiGLU(d_model, d_ff)
 
     def forward(self, x, use_mask=True, positions=None):
+        """Apply pre-norm GQA and SwiGLU residual sublayers to one sequence."""
         # Pre-Norm Attention
         residual = x
         x = self.rmsnorm1.forward(x)
@@ -128,6 +131,7 @@ class LlamaModel:
         ]
 
     def forward(self, x, use_mask=True, positions=None):
+        """Map hidden states through all decoder blocks and final RMSNorm."""
         for layer in self.layers:
             x = layer.forward(x, use_mask=use_mask, positions=positions)
         return x

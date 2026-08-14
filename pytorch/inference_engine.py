@@ -68,6 +68,7 @@ class InferenceEngine:
         self.seq_len = 0
 
     def reset(self):
+        """Discard all request cache state while retaining model weights."""
         self.kv_caches = [None] * len(self.model.layers)
         self.seq_len = 0
 
@@ -112,6 +113,7 @@ class InferenceEngine:
 
     @property
     def cache_bytes(self):
+        """Return total reserved bytes across layer cache backends."""
         if not self.kv_caches:
             return 0
         return sum(
@@ -120,6 +122,7 @@ class InferenceEngine:
 
     @property
     def cache_used_bytes(self):
+        """Return bytes occupied by initialized K/V positions across layers."""
         if not self.kv_caches:
             return 0
         return sum(

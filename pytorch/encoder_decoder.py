@@ -9,12 +9,15 @@ from cross_attention import MultiHeadCrossAttention
 
 
 class FFN(nn.Module):
+    """Position-wise feed-forward sublayer shared by encoder and decoder."""
+
     def __init__(self, d_model, d_ff):
         super().__init__()
         self.W1 = nn.Linear(d_model, d_ff, bias=True)
         self.W2 = nn.Linear(d_ff, d_model, bias=True)
 
     def forward(self, x):
+        """Project the final hidden dimension and preserve leading axes."""
         return self.W2(torch.relu(self.W1(x)))
 
 
@@ -26,6 +29,7 @@ class EncoderLayer(nn.Module):
         self.ffn = FFN(d_model, d_ff)
 
     def forward(self, x):
+        """Encode source states with unmasked self-attention."""
         attn_out = self.self_attn(x, use_mask=False)
         x = x + attn_out
         x = layer_norm(x)
@@ -44,6 +48,7 @@ class DecoderLayer(nn.Module):
         self.ffn = FFN(d_model, d_ff)
 
     def forward(self, x, encoder_output):
+        """Apply causal self-attention, cross-attention, then the FFN."""
         # Self-Attention（因果掩码）
         attn_out = self.self_attn(x, use_mask=True)
         x = x + attn_out

@@ -24,22 +24,28 @@ from positional_encoding import sinusoidal_positional_encoding
 # ============================================================
 
 class FFN(nn.Module):
+    """Training example's position-wise feed-forward sublayer."""
+
     def __init__(self, d_model, d_ff):
         super().__init__()
         self.W1 = nn.Linear(d_model, d_ff)
         self.W2 = nn.Linear(d_ff, d_model)
 
     def forward(self, x):
+        """Apply the training model's feed-forward transform."""
         return self.W2(F.relu(self.W1(x)))
 
 
 class EncoderLayer(nn.Module):
+    """Training example encoder layer with bidirectional self-attention."""
+
     def __init__(self, d_model, num_heads, d_ff):
         super().__init__()
         self.self_attn = MultiHeadAttention(d_model, num_heads)
         self.ffn = FFN(d_model, d_ff)
 
     def forward(self, x):
+        """Update source states through attention and FFN residual blocks."""
         attn_out = self.self_attn(x, use_mask=False)
         x = x + attn_out
         x = layer_norm(x)
@@ -50,6 +56,8 @@ class EncoderLayer(nn.Module):
 
 
 class DecoderLayer(nn.Module):
+    """Training example decoder layer with causal and cross-attention blocks."""
+
     def __init__(self, d_model, num_heads, d_ff):
         super().__init__()
         self.self_attn = MultiHeadAttention(d_model, num_heads)
@@ -57,6 +65,7 @@ class DecoderLayer(nn.Module):
         self.ffn = FFN(d_model, d_ff)
 
     def forward(self, x, encoder_output):
+        """Update target states using causal self-attention and source context."""
         attn_out = self.self_attn(x, use_mask=True)
         x = x + attn_out
         x = layer_norm(x)

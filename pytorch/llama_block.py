@@ -15,6 +15,7 @@ class RMSNorm(nn.Module):
         self.eps = eps
 
     def forward(self, x):
+        """Normalize the final hidden dimension without centering activations."""
         return F.rms_norm(x, (x.shape[-1],), self.weight, self.eps)
 
 
@@ -27,6 +28,7 @@ class SwiGLU(nn.Module):
         self.W_down = nn.Linear(d_ff, d_model, bias=False)
 
     def forward(self, x):
+        """Apply the gated SiLU feed-forward projection to batched states."""
         return self.W_down(F.silu(self.W_gate(x)) * self.W_up(x))
 
 
@@ -45,6 +47,11 @@ class LlamaDecoderBlock(nn.Module):
         self.swiglu = SwiGLU(d_model, d_ff)
 
     def forward(self, x, mask=None, positions=None, is_causal=False):
+        """Apply pre-norm GQA and SwiGLU residual sublayers.
+
+        ``x`` keeps shape ``(batch, sequence, d_model)``; mask semantics are
+        delegated to the attention backend.
+        """
         # Pre-Norm Attention
         residual = x
         x = self.rmsnorm1(x)

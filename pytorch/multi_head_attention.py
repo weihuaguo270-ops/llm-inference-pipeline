@@ -67,6 +67,11 @@ class MultiHeadAttention(nn.Module):
             self.register_buffer("_sin_table", sin_t)
 
     def forward(self, x, use_mask=True, positions=None):
+        """Run educational self-attention on ``(sequence, d_model)`` states.
+
+        This loop-oriented implementation exposes head splitting and causal mask
+        mechanics; production paths should use the batched SDPA module.
+        """
         seq_len = x.shape[0]
 
         # Step 1: QKV 投影 + 拆头

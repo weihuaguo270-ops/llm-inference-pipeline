@@ -80,10 +80,12 @@ class PagedKVCache:
 
     @property
     def num_blocks(self):
+        """Return the number of allocated physical K/V blocks."""
         return len(self.k_blocks)
 
     @property
     def utilization(self):
+        """Return initialized positions divided by allocated block capacity."""
         if not self.k_blocks:
             return 0.0
         used = self.length
@@ -92,6 +94,7 @@ class PagedKVCache:
 
     @property
     def allocated_bytes(self):
+        """Return bytes reserved by every allocated K/V block."""
         return sum(
             k.numel() * k.element_size() + v.numel() * v.element_size()
             for k, v in zip(self.k_blocks, self.v_blocks)
@@ -99,6 +102,7 @@ class PagedKVCache:
 
     @property
     def used_bytes(self):
+        """Return bytes corresponding to initialized sequence positions."""
         if self.batch_size is None:
             return 0
         elements = 2 * self.batch_size * self.num_heads * self.length * self.d_k

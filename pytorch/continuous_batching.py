@@ -12,6 +12,8 @@ from .inference_engine import InferenceEngine
 
 @dataclass
 class Request:
+    """Mutable scheduler state owned by one generation request."""
+
     req_id: int
     prompt: torch.Tensor
     max_new: int
@@ -56,6 +58,7 @@ class ContinuousBatcher:
         )
 
     def add_request(self, req: Request):
+        """Queue a unique single-sequence request without allocating cache yet."""
         if req.prompt.ndim != 2 or req.prompt.shape[0] != 1:
             raise ValueError("each request prompt must have shape (1, seq_len)")
         if req.max_new <= 0:
@@ -158,6 +161,7 @@ class ContinuousBatcher:
         return produced
 
     def run_until_done(self, max_batch=4, max_steps=1000):
+        """Drain the queue or fail when the scheduler makes insufficient progress."""
         steps = 0
         while self.queue and steps < max_steps:
             self.step(max_batch)

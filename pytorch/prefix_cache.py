@@ -14,6 +14,7 @@ class PrefixKVCache:
         self._prefix_caches = None
 
     def reset(self):
+        """Discard the cached prefix and associated K/V backend state."""
         self.prefix_ids = None
         self._prefix_caches = None
         self.engine.reset()
@@ -67,6 +68,7 @@ class PrefixKVCache:
         return self.engine.prefill_suffix(suffix)[:, -1:, :]
 
     def cache_hit(self, full_ids: torch.Tensor) -> bool:
+        """Return whether ``full_ids`` begins with the exact cached token prefix."""
         if self.prefix_ids is None:
             return False
         prefix_len = self.prefix_ids.shape[1]
