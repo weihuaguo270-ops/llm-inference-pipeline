@@ -76,6 +76,7 @@ class ContinuousBatcher:
         return groups
 
     def _split_cache(self, batch_engine, requests):
+        """Split a batched cache back into request-owned cache backends."""
         for batch_index, req in enumerate(requests):
             engine = self.engines.setdefault(req.req_id, self._new_engine())
             engine.kv_caches = []
@@ -91,6 +92,7 @@ class ContinuousBatcher:
             engine.seq_len = batch_engine.seq_len
 
     def _merge_decode_cache(self, requests):
+        """Merge equal-length request caches for one batched decode step."""
         batch_engine = self._new_engine()
         batch_engine.seq_len = self.engines[requests[0].req_id].seq_len
         batch_engine.kv_caches = []
@@ -142,6 +144,7 @@ class ContinuousBatcher:
         return self._record_tokens(requests, tokens)
 
     def step(self, max_batch=4) -> int:
+        """Advance prefill/decode groups once and remove completed requests."""
         active = [req for req in self.queue if not req.done][:max_batch]
         if not active:
             return 0

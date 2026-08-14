@@ -13,6 +13,8 @@ class ContiguousKVCache:
         self.v = v
 
     def append(self, k_new, v_new):
+        # Concatenation is the correctness baseline; static and paged variants
+        # avoid this reallocation as the sequence grows.
         if self.k is None:
             self.k, self.v = k_new, v_new
         else:
@@ -66,6 +68,7 @@ class StaticKVCache:
         self.v = torch.empty_like(self.k)
 
     def append(self, k_new, v_new):
+        # Reserve capacity once and copy only newly generated positions.
         if self.k is None:
             self._allocate(k_new, v_new)
         if k_new.shape != v_new.shape:
