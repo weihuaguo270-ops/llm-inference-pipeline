@@ -26,6 +26,8 @@ def _apply_rope(x, cos, sin, positions):
 
 
 class MultiHeadLatentAttention(nn.Module):
+    """Compress K/V state into a shared latent cache with a separate RoPE key."""
+
     def __init__(self, d_model, num_heads, d_c, d_kv_rope=32, max_seq_len=128):
         super().__init__()
         assert d_model % num_heads == 0
@@ -52,6 +54,7 @@ class MultiHeadLatentAttention(nn.Module):
         self._absorbed_v = None
 
     def absorb_weights(self):
+        """Precompute inference-only query/key and value latent projections."""
         Wq = self.Wq.weight.T.reshape(self.d_model, self.num_heads, self.d_k)
         Wuk = self.W_uk.weight.T.reshape(self.d_c, self.num_heads, self.d_k)
         Wuv = self.W_uv.weight.T.reshape(self.d_c, self.num_heads, self.d_k)
@@ -110,6 +113,7 @@ class MultiHeadLatentAttention(nn.Module):
     def forward_with_cache(
         self, x_step, c_kv_cache=None, k_r_cache=None, positions=None, use_absorb=False
     ):
+        """Decode one step and return output plus updated latent and RoPE caches."""
         if use_absorb:
             return self._forward_cache_absorb(x_step, c_kv_cache, k_r_cache, positions)
         return self._forward_cache_decompress(x_step, c_kv_cache, k_r_cache, positions)

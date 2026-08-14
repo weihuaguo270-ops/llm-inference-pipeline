@@ -13,6 +13,9 @@ class ContiguousKVCache:
         self.v = v
 
     def append(self, k_new, v_new):
+        """Append sequence positions and return this request-owned cache."""
+        # Concatenation is the correctness baseline; static and paged variants
+        # avoid this reallocation as the sequence grows.
         if self.k is None:
             self.k, self.v = k_new, v_new
         else:
@@ -21,24 +24,29 @@ class ContiguousKVCache:
         return self
 
     def materialize(self):
+        """Return the full K/V tensors currently visible to attention."""
         return self.k, self.v
 
     def iter_blocks(self):
+        """Yield the cache as one logical block for a common backend interface."""
         if self.k is not None:
             yield self.k, self.v
 
     @property
     def length(self):
+        """Return the number of cached sequence positions."""
         return 0 if self.k is None else self.k.shape[2]
 
     @property
     def allocated_bytes(self):
+        """Return bytes occupied by the current concatenated tensors."""
         if self.k is None:
             return 0
         return self.k.numel() * self.k.element_size() + self.v.numel() * self.v.element_size()
 
     @property
     def used_bytes(self):
+        """Return bytes containing live K/V data."""
         return self.allocated_bytes
 
 
@@ -66,6 +74,8 @@ class StaticKVCache:
         self.v = torch.empty_like(self.k)
 
     def append(self, k_new, v_new):
+        """Copy new positions into preallocated storage without growing it."""
+        # Reserve capacity once and copy only newly generated positions.
         if self.k is None:
             self._allocate(k_new, v_new)
         if k_new.shape != v_new.shape:
@@ -87,24 +97,29 @@ class StaticKVCache:
         return self
 
     def materialize(self):
+        """Return views limited to initialized sequence positions."""
         return self.k[:, :, :self._length], self.v[:, :, :self._length]
 
     def iter_blocks(self):
+        """Yield one initialized view for the common backend interface."""
         if self._length:
             yield self.materialize()
 
     @property
     def length(self):
+        """Return initialized positions, excluding reserved capacity."""
         return self._length
 
     @property
     def allocated_bytes(self):
+        """Return total reserved K/V capacity in bytes."""
         if self.k is None:
             return 0
         return self.k.numel() * self.k.element_size() + self.v.numel() * self.v.element_size()
 
     @property
     def used_bytes(self):
+        """Return bytes belonging to initialized K/V positions."""
         if self.k is None:
             return 0
         elements = 2 * self.k.shape[0] * self.k.shape[1] * self._length * self.k.shape[3]

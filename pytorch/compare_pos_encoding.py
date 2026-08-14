@@ -25,20 +25,26 @@ from pytorch.cross_attention import MultiHeadCrossAttention
 # ============================================================
 
 class FFN(nn.Module):
+    """Feed-forward sublayer used only by the positional-encoding comparison."""
+
     def __init__(self, d_model, d_ff):
         super().__init__()
         self.W1 = nn.Linear(d_model, d_ff)
         self.W2 = nn.Linear(d_ff, d_model)
     def forward(self, x):
+        """Apply the comparison model's position-wise feed-forward transform."""
         return self.W2(F.relu(self.W1(x)))
 
 
 class EncoderLayer(nn.Module):
+    """Minimal encoder layer for comparing positional-encoding variants."""
+
     def __init__(self, d_model, num_heads, d_ff, use_rope=False):
         super().__init__()
         self.self_attn = MultiHeadAttention(d_model, num_heads, use_rope=use_rope)
         self.ffn = FFN(d_model, d_ff)
     def forward(self, x):
+        """Apply unmasked self-attention and FFN residual updates."""
         attn_out = self.self_attn(x, use_mask=False)
         x = x + attn_out
         x = layer_norm(x)
@@ -49,12 +55,15 @@ class EncoderLayer(nn.Module):
 
 
 class DecoderLayer(nn.Module):
+    """Minimal decoder layer for the positional-encoding comparison."""
+
     def __init__(self, d_model, num_heads, d_ff, use_rope=False):
         super().__init__()
         self.self_attn = MultiHeadAttention(d_model, num_heads, use_rope=use_rope)
         self.cross_attn = MultiHeadCrossAttention(d_model, num_heads)
         self.ffn = FFN(d_model, d_ff)
     def forward(self, x, encoder_output):
+        """Apply causal self-attention followed by encoder cross-attention."""
         attn_out = self.self_attn(x, use_mask=True)
         x = x + attn_out
         x = layer_norm(x)
@@ -87,6 +96,7 @@ class Transformer(nn.Module):
         self.lm_head = nn.Linear(d_model, vocab_size)
 
     def forward(self, src_ids, tgt_ids):
+        """Return target-token logits for one source/target comparison batch."""
         d_model = self.token_embedding.embedding_dim
         device = src_ids.device
 

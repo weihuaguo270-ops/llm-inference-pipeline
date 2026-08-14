@@ -126,6 +126,7 @@ class StreamingKVCache:
 # 简化的 Attention 计算（使用 StreamingKVCache）
 # ============================================================
 def softmax(x):
+    """Compute numerically stable softmax over the last attention axis."""
     e_x = np.exp(x - np.max(x, axis=-1, keepdims=True))
     return e_x / np.sum(e_x, axis=-1, keepdims=True)
 

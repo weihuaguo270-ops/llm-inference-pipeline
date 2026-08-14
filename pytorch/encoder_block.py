@@ -10,12 +10,15 @@ from multi_head_attention import MultiHeadAttention
 
 
 class FFN(nn.Module):
+    """Position-wise feed-forward sublayer for the encoder example."""
+
     def __init__(self, d_model, d_ff):
         super().__init__()
         self.W1 = nn.Linear(d_model, d_ff, bias=True)
         self.W2 = nn.Linear(d_ff, d_model, bias=True)
 
     def forward(self, x):
+        """Preserve batch and sequence axes while projecting hidden states."""
         return self.W2(torch.relu(self.W1(x)))
 
 
@@ -29,6 +32,7 @@ class EncoderBlock(nn.Module):
         self.ffn = FFN(d_model, d_ff)
 
     def forward(self, x):
+        """Apply bidirectional self-attention and FFN residual sublayers."""
         # 子层 1: 双向 Self-Attention（use_mask=False）
         attn_out = self.attention(x, use_mask=False)
         x = x + attn_out

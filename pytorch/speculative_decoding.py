@@ -24,12 +24,14 @@ class TorchLM:
         self.model.eval()
 
     def forward(self, token_ids: np.ndarray) -> np.ndarray:
+        """Return next-token logits from the wrapped Torch model as NumPy."""
         with torch.no_grad():
             idx = torch.tensor(token_ids, dtype=torch.long, device=self.device).unsqueeze(0)
             logits = self.model(idx)[0].cpu().numpy()
         return logits
 
     def generate_token(self, token_ids):
+        """Sample one token from the wrapped model distribution."""
         logits = self.forward(token_ids)
         last = logits[-1]
         probs = self._softmax(last)
@@ -37,6 +39,7 @@ class TorchLM:
         return tok, last
 
     def generate_n_tokens(self, token_ids, n):
+        """Autoregressively sample ``n`` draft tokens."""
         tokens, logits_list = [], []
         current = token_ids.copy()
         for _ in range(n):
@@ -73,6 +76,7 @@ def run_speculative_benchmark(
     device="cpu",
     seed=42,
 ):
+    """Compare target-only and speculative decoding under one fixed prompt."""
     np.random.seed(seed)
     torch.manual_seed(seed)
 

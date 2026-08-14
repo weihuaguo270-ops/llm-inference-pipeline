@@ -68,6 +68,7 @@ class InferenceEngine:
         self.seq_len = 0
 
     def reset(self):
+        """Discard all request cache state while retaining model weights."""
         self.kv_caches = [None] * len(self.model.layers)
         self.seq_len = 0
 
@@ -85,12 +86,15 @@ class InferenceEngine:
             return self._prefill_impl(idx)
 
     def _prefill_impl(self, idx: torch.Tensor) -> torch.Tensor:
+        # Prefill starts a new sequence; stale cache pages must not leak across requests.
         self.reset()
         self.model.eval()
         B, T = idx.shape
         x = self.model.token_embedding(idx)
         positions = torch.arange(T, device=idx.device)
 
+        # Each layer returns its updated backend so contiguous, static and paged
+        # caches share one engine-level update path.
         new_caches = []
         for layer in self.model.layers:
             x, cache = self._layer_forward(
@@ -109,6 +113,7 @@ class InferenceEngine:
 
     @property
     def cache_bytes(self):
+        """Return total reserved bytes across layer cache backends."""
         if not self.kv_caches:
             return 0
         return sum(
@@ -117,6 +122,7 @@ class InferenceEngine:
 
     @property
     def cache_used_bytes(self):
+        """Return bytes occupied by initialized K/V positions across layers."""
         if not self.kv_caches:
             return 0
         return sum(
@@ -165,6 +171,7 @@ class InferenceEngine:
     def generate_naive(self, idx, max_new_tokens):
         """无 Cache 自回归（对照组）。"""
         self.model.eval()
+        # This deliberately recomputes the full context as the cache benchmark control.
         for _ in range(max_new_tokens):
             cond = idx[:, -self.model.layers[0].self_attn._cos.shape[0] + 1:]
             logits = self.model(cond)

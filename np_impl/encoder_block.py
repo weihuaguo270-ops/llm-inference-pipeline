@@ -34,6 +34,7 @@ class FFN:
         self.W2 = np.random.randn(d_ff, d_model) * 0.01
         self.b2 = np.zeros(d_model)
     def forward(self, x):
+        """Apply ReLU expansion and projection to ``(sequence, d_model)`` states."""
         hidden = x @ self.W1 + self.b1
         hidden = np.maximum(0, hidden)
         return hidden @ self.W2 + self.b2

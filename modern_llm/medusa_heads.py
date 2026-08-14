@@ -20,6 +20,7 @@ class MedusaHeads:
         self.heads = [rng.randn(d, v) * 0.05 for _ in range(num_heads)]
 
     def propose(self, token_ids, gamma):
+        """Return up to ``gamma`` draft tokens from independent Medusa heads."""
         _ = self.base.forward(token_ids)
         hidden = self.base.embedding[token_ids]
         drafts = []
@@ -31,6 +32,8 @@ class MedusaHeads:
 
 
 class MedusaDecoder:
+    """Verify parallel Medusa proposals against the base autoregressive model."""
+
     def __init__(self, base_lm, num_heads=4, gamma=4):
         self.medusa = MedusaHeads(base_lm, num_heads)
         self.base = base_lm
@@ -38,6 +41,7 @@ class MedusaDecoder:
         self.stats = {"target_calls": 0, "accepted": 0, "rejected": 0}
 
     def generate(self, prefix, max_new_tokens=20):
+        """Generate until the token budget using repeated propose/verify rounds."""
         output = prefix.copy()
         while len(output) - len(prefix) < max_new_tokens:
             n = min(self.gamma, max_new_tokens - (len(output) - len(prefix)))

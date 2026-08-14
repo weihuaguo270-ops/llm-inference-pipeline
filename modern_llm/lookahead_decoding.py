@@ -36,6 +36,7 @@ class LookaheadDecoder:
         return np.array(drafts[:n])
 
     def generate(self, prefix, max_new_tokens=20):
+        """Generate greedily while reusing n-gram continuations as lookahead guesses."""
         output = prefix.copy()
         while len(output) - len(prefix) < max_new_tokens:
             n = min(self.gamma, max_new_tokens - (len(output) - len(prefix)))

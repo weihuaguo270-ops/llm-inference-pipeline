@@ -50,6 +50,11 @@ class GroupedQueryAttention:
             )
 
     def forward(self, x, use_mask=True, positions=None):
+        """Run GQA on ``(sequence, d_model)`` states.
+
+        Query heads share each K/V head within a group; an upper-triangular mask
+        prevents future-token attention when ``use_mask`` is true.
+        """
         seq_len = x.shape[0]
 
         # 1. 投影
