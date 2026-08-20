@@ -2,6 +2,19 @@
 
 ## Unreleased
 
+## 0.3.1 (2026-08-20)
+
+### Documentation and evidence
+
+- Normalized reproduction commands to repository-relative paths and documented the
+  model-quality evidence probe alongside latency, cache, and CUDA evidence.
+- Kept hardware-specific claims tied to the recorded RTX 4060 environment and explicit
+  CPU/CUDA test modes.
+
+### Verified
+
+- Portability and release-evidence regression: 7 passed.
+
 ### Fixed
 
 - Run the focused CI regression through `python -m pytest` so repository modules resolve consistently on clean runners
